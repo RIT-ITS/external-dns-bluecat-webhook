@@ -13,7 +13,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -40,19 +43,23 @@ type Client interface {
 }
 
 type httpClient struct {
-	baseURL    string
-	token      string
-	httpClient *http.Client
+	tokenMu          sync.Mutex
+	tokenExpires     time.Time
+	refreshToken     string
+	tokenExchangeURL string
+	baseURL          string
+	token            string
+	httpClient       *http.Client
 }
 
-// Config is the Address Manager connection settings.
+// Config is the Address Manager connection and authentication settings.
 type Config struct {
-	Host          string
-	Username      string
-	Password      string
-	CAFile        string
-	SkipTLSVerify bool
-	Timeout       time.Duration
+	Host             string
+	RefreshToken     string
+	TokenExchangeURL string
+	CAFile           string
+	SkipTLSVerify    bool
+	Timeout          time.Duration
 }
 
 // Login creates an authenticated v2 client.
@@ -60,8 +67,8 @@ func Login(ctx context.Context, cfg Config) (Client, error) {
 	if cfg.Host == "" {
 		return nil, fmt.Errorf("bluecat host is required")
 	}
-	if cfg.Username == "" || cfg.Password == "" {
-		return nil, fmt.Errorf("bluecat username and password are required")
+	if cfg.RefreshToken == "" || cfg.TokenExchangeURL == "" {
+		return nil, fmt.Errorf("Refresh token and token exchangeand password are required")
 	}
 	timeout := cfg.Timeout
 	if timeout == 0 {
@@ -72,7 +79,9 @@ func Login(ctx context.Context, cfg Config) (Client, error) {
 		return nil, err
 	}
 	c := &httpClient{
-		baseURL: strings.TrimRight(cfg.Host, "/"),
+		baseURL:          strings.TrimRight(cfg.Host, "/"),
+		refreshToken:     cfg.RefreshToken,
+		tokenExchangeURL: cfg.TokenExchangeURL,
 		httpClient: &http.Client{
 			Timeout: timeout,
 			Transport: &http.Transport{
@@ -83,31 +92,83 @@ func Login(ctx context.Context, cfg Config) (Client, error) {
 		},
 	}
 
-	session := Session{Username: ptr(cfg.Username), Password: ptr(cfg.Password)}
-	body, err := json.Marshal(session)
-	if err != nil {
-		return nil, fmt.Errorf("marshal session: %w", err)
+	if _, err := c.accessToken(ctx); err != nil {
+		return nil, err
 	}
-	resp, err := c.do(ctx, http.MethodPost, "/api/v2/sessions", "", bytes.NewReader(body))
+
+	return c, nil
+}
+
+func (c *httpClient) accessToken(ctx context.Context) (string, error) {
+	log.Info("checking BlueCat access token cache")
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+	if c.token != "" && time.Now().Before(c.tokenExpires) {
+		log.WithField("expires_at", c.tokenExpires).Info("reusing cached BlueCat access token")
+		return c.token, nil
+	}
+
+	log.Info("requesting new BlueCat access token")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.tokenExchangeURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create session: %w", err)
+		log.Error("failed to create BlueCat token exchange request")
+		return "", fmt.Errorf("create token exchange request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.refreshToken)
+	req.Header.Set("Accept", "application/json")
+	log.Info("sending BlueCat token exchange request")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		log.Error("BlueCat token exchange request failed")
+		return "", fmt.Errorf("exchange token: %w", err)
 	}
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(resp.Body)
+	log.WithField("status_code", resp.StatusCode).Info("received BlueCat token exchange response")
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Error("BlueCat token exchange returned unsuccessful status")
+		return "", fmt.Errorf("exchange token: http %d", resp.StatusCode)
+	}
+	var result struct {
+		AccessToken string `json:"access_token"`
+	}
+	log.Info("decoding BlueCat token exchange response")
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Error("failed to decode BlueCat token exchange response")
+		return "", fmt.Errorf("decode token exchange response: %w", err)
+	}
+	if result.AccessToken == "" {
+		log.Error("BlueCat token exchange response missing access_token")
+		return "", fmt.Errorf("token exchange response missing access_token")
+	}
+	log.Info("decoding BlueCat access token claims")
+	parts := strings.Split(result.AccessToken, ".")
+	if len(parts) != 3 {
+		log.Error("BlueCat access token is not a JWT")
+		return "", fmt.Errorf("access token is not a JWT")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return nil, fmt.Errorf("read session response: %w", err)
+		log.Error("failed to decode BlueCat access token claims")
+		return "", fmt.Errorf("decode access token claims: %w", err)
 	}
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("create session: http %d: %s", resp.StatusCode, raw)
+	// Claims are used only for cache expiration, not signature verification.
+	var claims struct {
+		Exp int64 `json:"exp"`
 	}
-	if err := json.Unmarshal(raw, &session); err != nil {
-		return nil, fmt.Errorf("decode session: %w", err)
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		log.Error("failed to decode BlueCat access token claims")
+		return "", fmt.Errorf("decode access token claims: %w", err)
 	}
-	if session.APIToken == nil || *session.APIToken == "" {
-		return nil, fmt.Errorf("session response missing apiToken")
+	log.WithField("claims", string(payload)).Info("decoded BlueCat access token claims (unverified)")
+	log.Info("checking BlueCat access token expiration")
+	expires := time.Unix(claims.Exp, 0)
+	if claims.Exp <= 0 || !time.Now().Before(expires) {
+		log.Error("BlueCat access token has missing or expired exp claim")
+		return "", fmt.Errorf("access token has missing or expired exp claim")
 	}
-	c.token = base64.StdEncoding.EncodeToString([]byte(cfg.Username + ":" + *session.APIToken))
-	return c, nil
+	c.token, c.tokenExpires = result.AccessToken, expires
+	log.WithField("expires_at", expires).Info("set new BlueCat access token on client")
+	return c.token, nil
 }
 
 func (c *httpClient) ListZones(ctx context.Context, rootZone string) ([]Zone, error) {
@@ -204,7 +265,7 @@ func (c *httpClient) CreateOrUpdateTXT(ctx context.Context, zone Zone, rec TXTRe
 }
 
 func (c *httpClient) DeleteRecord(ctx context.Context, id int64) error {
-	resp, err := c.do(ctx, http.MethodDelete, "/api/v2/resourceRecords/"+strconvFormat(id), c.token, nil)
+	resp, err := c.do(ctx, http.MethodDelete, "/api/v2/resourceRecords/"+strconvFormat(id), nil)
 	if err != nil {
 		return err
 	}
@@ -242,7 +303,7 @@ func (c *httpClient) DeployZone(ctx context.Context, zone Zone) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.do(ctx, http.MethodPost, "/api/v2/zones/"+zone.IDString()+"/deployments", c.token, bytes.NewReader(body))
+	resp, err := c.do(ctx, http.MethodPost, "/api/v2/zones/"+zone.IDString()+"/deployments", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -281,7 +342,7 @@ func (c *httpClient) upsert(ctx context.Context, zone Zone, id *int64, absoluteN
 		method = http.MethodPut
 		path = "/api/v2/resourceRecords/" + strconvFormat(*id)
 	}
-	resp, err := c.do(ctx, method, path, c.token, bytes.NewReader(body))
+	resp, err := c.do(ctx, method, path, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -294,7 +355,7 @@ func (c *httpClient) upsert(ctx context.Context, zone Zone, id *int64, absoluteN
 }
 
 func (c *httpClient) getJSON(ctx context.Context, path string, dest any) error {
-	resp, err := c.do(ctx, http.MethodGet, path, c.token, nil)
+	resp, err := c.do(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return err
 	}
@@ -317,7 +378,7 @@ func (c *httpClient) putJSON(ctx context.Context, path string, payload any) erro
 	if err != nil {
 		return err
 	}
-	resp, err := c.do(ctx, http.MethodPut, path, c.token, bytes.NewReader(body))
+	resp, err := c.do(ctx, http.MethodPut, path, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -329,7 +390,7 @@ func (c *httpClient) putJSON(ctx context.Context, path string, payload any) erro
 	return nil
 }
 
-func (c *httpClient) do(ctx context.Context, method, path, token string, body io.Reader) (*http.Response, error) {
+func (c *httpClient) do(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return nil, err
@@ -338,9 +399,11 @@ func (c *httpClient) do(ctx context.Context, method, path, token string, body io
 	if method == http.MethodPost || method == http.MethodPut {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if token != "" {
-		req.Header.Set("Authorization", "Basic "+token)
+	token, err := c.accessToken(ctx)
+	if err != nil {
+		return nil, err
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	return c.httpClient.Do(req)
 }
 

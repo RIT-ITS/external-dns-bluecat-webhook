@@ -24,8 +24,8 @@ type Config struct {
 
 	ConfigFile        string
 	Host              string
-	Username          string
-	Password          string
+	RefreshToken      string
+	TokenExchangeURL  string
 	DNSConfiguration  string
 	View              string
 	RootZone          string
@@ -38,8 +38,8 @@ type Config struct {
 
 type fileConfig struct {
 	BluecatHost      string `json:"bluecatHost"`
-	BluecatUsername  string `json:"bluecatUsername"`
-	BluecatPassword  string `json:"bluecatPassword"`
+	RefreshToken     string `json:"refreshToken"`
+	TokenExchangeURL string `json:"tokenExchangeURL"`
 	DNSConfiguration string `json:"dnsConfiguration"`
 	DNSServerName    string `json:"dnsServerName"`
 	DNSDeployType    string `json:"dnsDeployType"`
@@ -73,8 +73,8 @@ func Load(args []string) (*Config, error) {
 	fs.StringSliceVar(&cfg.ZoneIDFilter, "zone-id-filter", nil, "limit managed zones to these BlueCat zone IDs")
 	fs.StringVar(&cfg.ConfigFile, "bluecat-config-file", os.Getenv("BLUECAT_CONFIG_FILE"), "optional JSON config file (same keys as the in-tree BlueCat provider)")
 	fs.StringVar(&cfg.Host, "bluecat-host", os.Getenv("BLUECAT_HOST"), "BlueCat Address Manager base URL, e.g. https://bam.example.com")
-	fs.StringVar(&cfg.Username, "bluecat-username", os.Getenv("BLUECAT_USERNAME"), "API username")
-	fs.StringVar(&cfg.Password, "bluecat-password", os.Getenv("BLUECAT_PASSWORD"), "API password")
+	fs.StringVar(&cfg.RefreshToken, "bluecat-refreshtoken", os.Getenv("BLUECAT_REFRESHTOKEN"), "Token vendor refresh token")
+	fs.StringVar(&cfg.TokenExchangeURL, "bluecat-tokenexchangeurl", os.Getenv("BLUECAT_TOKENEXCHANGEURL"), "URL to the tokenvendor exchange endpoint")
 	fs.StringVar(&cfg.DNSConfiguration, "bluecat-dns-configuration", os.Getenv("BLUECAT_DNS_CONFIGURATION"), "optional BAM configuration name (informational)")
 	fs.StringVar(&cfg.View, "bluecat-dns-view", os.Getenv("BLUECAT_DNS_VIEW"), "optional DNS view name used to filter zones")
 	fs.StringVar(&cfg.RootZone, "bluecat-root-zone", os.Getenv("BLUECAT_ROOT_ZONE"), "root zone used to discover zones (contains filter)")
@@ -93,11 +93,11 @@ func Load(args []string) (*Config, error) {
 			return nil, err
 		}
 	}
-	if v, ok := os.LookupEnv("BLUECAT_USERNAME"); ok && v != "" {
-		cfg.Username = v
+	if v, ok := os.LookupEnv("BLUECAT_TOKENEXCHANGEURL"); ok && v != "" {
+		cfg.TokenExchangeURL = v
 	}
-	if v, ok := os.LookupEnv("BLUECAT_PASSWORD"); ok && v != "" {
-		cfg.Password = v
+	if v, ok := os.LookupEnv("BLUECAT_REFRESHTOKEN"); ok && v != "" {
+		cfg.RefreshToken = v
 	}
 	if v, ok := os.LookupEnv("BLUECAT_CA_FILE"); ok && v != "" {
 		cfg.CAFile = v
@@ -129,11 +129,11 @@ func overlayFile(cfg *Config) error {
 	if file.BluecatHost != "" {
 		cfg.Host = file.BluecatHost
 	}
-	if file.BluecatUsername != "" {
-		cfg.Username = file.BluecatUsername
+	if file.RefreshToken != "" {
+		cfg.RefreshToken = file.RefreshToken
 	}
-	if file.BluecatPassword != "" {
-		cfg.Password = file.BluecatPassword
+	if file.TokenExchangeURL != "" {
+		cfg.TokenExchangeURL = file.TokenExchangeURL
 	}
 	if file.DNSConfiguration != "" {
 		cfg.DNSConfiguration = file.DNSConfiguration

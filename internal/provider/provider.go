@@ -38,12 +38,12 @@ type Bluecat struct {
 // New builds a provider from config using a live BAM client.
 func New(ctx context.Context, cfg *config.Config) (*Bluecat, error) {
 	client, err := bluecat.Login(ctx, bluecat.Config{
-		Host:          cfg.Host,
-		Username:      cfg.Username,
-		Password:      cfg.Password,
-		SkipTLSVerify: cfg.SkipTLSVerify,
-		CAFile:        cfg.CAFile,
-		Timeout:       cfg.HTTPClientTimeout,
+		Host:             cfg.Host,
+		RefreshToken:     cfg.RefreshToken,
+		TokenExchangeURL: cfg.TokenExchangeURL,
+		SkipTLSVerify:    cfg.SkipTLSVerify,
+		CAFile:           cfg.CAFile,
+		Timeout:          cfg.HTTPClientTimeout,
 	})
 	if err != nil {
 		return nil, err

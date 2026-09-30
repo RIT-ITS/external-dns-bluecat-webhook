@@ -30,15 +30,15 @@ Flags and environment variables are equivalent. Credentials from the environment
 | Flag | Env | Description |
 | --- | --- | --- |
 | `--bluecat-host` | `BLUECAT_HOST` | BAM base URL, e.g. `https://bam.example.com` |
-| `--bluecat-username` | `BLUECAT_USERNAME` | API user |
-| `--bluecat-password` | `BLUECAT_PASSWORD` | API password |
+| `--bluecat-refreshtoken` | `BLUECAT_REFRESHTOKEN` | Token vendor refresh token |
+| `--bluecat-tokenexchangeurl` | `BLUECAT_TOKENEXCHANGEURL` | URL of the token vendor exchange endpoint |
 | `--bluecat-root-zone` | `BLUECAT_ROOT_ZONE` | Zone discovery filter (`absoluteName:contains(...)`) |
 | `--bluecat-dns-view` | `BLUECAT_DNS_VIEW` | Optional view name filter |
 | `--bluecat-dns-deploy-type` | `BLUECAT_DNS_DEPLOY_TYPE` | `no-deploy` (default), `quick-deploy`, or `dynamic` |
 | `--bluecat-dns-server-name` | `BLUECAT_DNS_SERVER_NAME` | When set with `quick-deploy`, POST a zone deployment after changes |
 | `--bluecat-skip-tls-verify` | `BLUECAT_SKIP_TLS_VERIFY` | Skip TLS verify (labs only; incompatible with `--bluecat-ca-file`) |
 | `--bluecat-ca-file` | `BLUECAT_CA_FILE` | PEM file of extra CA certificates to trust for BAM TLS |
-| `--bluecat-config-file` | `BLUECAT_CONFIG_FILE` | JSON file using the same keys as the old in-tree provider |
+| `--bluecat-config-file` | `BLUECAT_CONFIG_FILE` | JSON configuration file (see example below) |
 | `--domain-filter` | | Limit managed domains |
 | `--listen-address` | | Webhook API, default `127.0.0.1:8888` |
 | `--health-address` | | `/healthz` and `/readyz`, default `:8080` |
@@ -49,8 +49,8 @@ JSON file example:
 ```json
 {
   "bluecatHost": "https://bam.example.com",
-  "bluecatUsername": "api",
-  "bluecatPassword": "secret",
+  "refreshToken": "your-refresh-token",
+  "tokenExchangeURL": "https://tokenvendor.example.com/exchange",
   "dnsView": "Internal",
   "rootZone": "example.com",
   "dnsDeployType": "no-deploy",
@@ -59,7 +59,7 @@ JSON file example:
 }
 ```
 
-Auth uses `POST /api/v2/sessions`, then `Authorization: Basic base64(username:apiToken)` and `Accept: application/hal+json`.
+Auth sends a `POST` request to the token exchange URL with `Authorization: Bearer <refreshToken>`. The JSON response must contain an `access_token` JWT with an `exp` claim. The client caches the access token until it expires and exchanges the refresh token again before the next API request. BAM requests use `Authorization: Bearer <access_token>` and `Accept: application/hal+json`.
 
 ## Run with ExternalDNS
 
@@ -70,8 +70,8 @@ Webhook:
 ```bash
 external-dns-bluecat-webhook \
   --bluecat-host=https://bam.example.com \
-  --bluecat-username="$BLUECAT_USERNAME" \
-  --bluecat-password="$BLUECAT_PASSWORD" \
+  --bluecat-refreshtoken="$BLUECAT_REFRESHTOKEN" \
+  --bluecat-tokenexchangeurl="$BLUECAT_TOKENEXCHANGEURL" \
   --bluecat-root-zone=example.com \
   --bluecat-ca-file=/etc/bluecat/ca.crt \
   --domain-filter=example.com \

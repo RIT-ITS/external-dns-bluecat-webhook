@@ -39,10 +39,11 @@ func TestLoginTrustsCustomCA(t *testing.T) {
 	caFile := filepath.Join(t.TempDir(), "ca.pem")
 	require.NoError(t, os.WriteFile(caFile, caPEM, 0o600))
 
+	token := testAccessToken(t, time.Now().Add(time.Hour))
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v2/sessions", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(map[string]string{"apiToken": "tok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"access_token": token})
 	})
 	srv := httptest.NewUnstartedServer(mux)
 	srv.TLS = &tls.Config{Certificates: []tls.Certificate{serverCert}, MinVersion: tls.VersionTLS12}
@@ -50,17 +51,17 @@ func TestLoginTrustsCustomCA(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	_, err := Login(context.Background(), Config{
-		Host:     srv.URL,
-		Username: "api",
-		Password: "secret",
-		CAFile:   caFile,
+		Host:             srv.URL,
+		RefreshToken:     "refresh",
+		TokenExchangeURL: srv.URL + "/token",
+		CAFile:           caFile,
 	})
 	require.NoError(t, err)
 
 	_, err = Login(context.Background(), Config{
-		Host:     srv.URL,
-		Username: "api",
-		Password: "secret",
+		Host:             srv.URL,
+		RefreshToken:     "refresh",
+		TokenExchangeURL: srv.URL + "/token",
 	})
 	require.Error(t, err)
 }

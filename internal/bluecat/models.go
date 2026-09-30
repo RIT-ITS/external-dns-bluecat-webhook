@@ -2,11 +2,9 @@ package bluecat
 
 import "strconv"
 
-// Session is the BlueCat Address Manager v2 login payload and response.
-type Session struct {
-	Username *string `json:"username,omitempty"`
-	Password *string `json:"password,omitempty"`
-	APIToken *string `json:"apiToken,omitempty"`
+// TokenExchange is the response from the TokenVendor Exchange endpoint
+type TokenExchange struct {
+	AccessToken *string `json:"access_token,omitempty"`
 }
 
 type collection[T any] struct {
@@ -17,13 +15,13 @@ type collection[T any] struct {
 
 // Zone is a DNS zone in Address Manager.
 type Zone struct {
-	ID                    *int64  `json:"id,omitempty"`
-	Type                  *string `json:"type,omitempty"`
-	Name                  *string `json:"name,omitempty"`
-	AbsoluteName          *string `json:"absoluteName,omitempty"`
-	DynamicUpdateEnabled  *bool   `json:"dynamicUpdateEnabled,omitempty"`
-	DeploymentEnabled     *bool   `json:"deploymentEnabled,omitempty"`
-	View                  *string `json:"view,omitempty"`
+	ID                   *int64  `json:"id,omitempty"`
+	Type                 *string `json:"type,omitempty"`
+	Name                 *string `json:"name,omitempty"`
+	AbsoluteName         *string `json:"absoluteName,omitempty"`
+	DynamicUpdateEnabled *bool   `json:"dynamicUpdateEnabled,omitempty"`
+	DeploymentEnabled    *bool   `json:"deploymentEnabled,omitempty"`
+	View                 *string `json:"view,omitempty"`
 }
 
 func (z Zone) AbsoluteNameOrEmpty() string {
@@ -59,13 +57,13 @@ type Address struct {
 
 // HostRecord is a BlueCat HostRecord (A/AAAA).
 type HostRecord struct {
-	ID           *int64     `json:"id,omitempty"`
-	Type         string     `json:"type"`
-	Name         *string    `json:"name,omitempty"`
-	AbsoluteName *string    `json:"absoluteName,omitempty"`
-	Comment      *string    `json:"comment,omitempty"`
-	TTL          *int64     `json:"ttl,omitempty"`
-	Addresses    []Address  `json:"addresses,omitempty"`
+	ID           *int64             `json:"id,omitempty"`
+	Type         string             `json:"type"`
+	Name         *string            `json:"name,omitempty"`
+	AbsoluteName *string            `json:"absoluteName,omitempty"`
+	Comment      *string            `json:"comment,omitempty"`
+	TTL          *int64             `json:"ttl,omitempty"`
+	Addresses    []Address          `json:"addresses,omitempty"`
 	Embedded     *embeddedAddresses `json:"_embedded,omitempty"`
 }
 
@@ -97,13 +95,13 @@ func (r HostRecord) IPAddresses() []string {
 
 // AliasRecord is a BlueCat CNAME (AliasRecord).
 type AliasRecord struct {
-	ID           *int64         `json:"id,omitempty"`
-	Type         string         `json:"type"`
-	Name         *string        `json:"name,omitempty"`
-	AbsoluteName *string        `json:"absoluteName,omitempty"`
-	Comment      *string        `json:"comment,omitempty"`
-	TTL          *int64         `json:"ttl,omitempty"`
-	LinkedRecord *LinkedRecord  `json:"linkedRecord,omitempty"`
+	ID           *int64        `json:"id,omitempty"`
+	Type         string        `json:"type"`
+	Name         *string       `json:"name,omitempty"`
+	AbsoluteName *string       `json:"absoluteName,omitempty"`
+	Comment      *string       `json:"comment,omitempty"`
+	TTL          *int64        `json:"ttl,omitempty"`
+	LinkedRecord *LinkedRecord `json:"linkedRecord,omitempty"`
 }
 
 // LinkedRecord is the CNAME target, either an existing record or an external host.
