@@ -17,6 +17,8 @@ type Config struct {
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
 	LogLevel       string
+	LogRequests    bool
+	LogResponses   bool
 	DryRun         bool
 	DomainFilter   []string
 	ExcludeDomains []string
@@ -27,7 +29,6 @@ type Config struct {
 	RefreshToken      string
 	TokenExchangeURL  string
 	DNSConfiguration  string
-	View              string
 	RootZone          string
 	DNSServerName     string
 	DNSDeployType     string
@@ -43,7 +44,6 @@ type fileConfig struct {
 	DNSConfiguration string `json:"dnsConfiguration"`
 	DNSServerName    string `json:"dnsServerName"`
 	DNSDeployType    string `json:"dnsDeployType"`
-	View             string `json:"dnsView"`
 	RootZone         string `json:"rootZone"`
 	SkipTLSVerify    bool   `json:"skipTLSVerify"`
 	CAFile           string `json:"caFile"`
@@ -67,6 +67,8 @@ func Load(args []string) (*Config, error) {
 	fs.DurationVar(&cfg.ReadTimeout, "read-timeout", cfg.ReadTimeout, "webhook HTTP read timeout")
 	fs.DurationVar(&cfg.WriteTimeout, "write-timeout", cfg.WriteTimeout, "webhook HTTP write timeout")
 	fs.StringVar(&cfg.LogLevel, "log-level", envOr("LOG_LEVEL", cfg.LogLevel), "log level")
+	fs.BoolVar(&cfg.LogRequests, "log-requests", false, "log incoming webhook requests including headers and bodies")
+	fs.BoolVar(&cfg.LogResponses, "log-responses", false, "log outgoing webhook responses including headers and bodies before sending")
 	fs.BoolVar(&cfg.DryRun, "dry-run", false, "log changes without calling BlueCat")
 	fs.StringSliceVar(&cfg.DomainFilter, "domain-filter", nil, "limit managed zones to these domains (repeatable)")
 	fs.StringSliceVar(&cfg.ExcludeDomains, "exclude-domains", nil, "domains to exclude (repeatable)")
@@ -76,7 +78,6 @@ func Load(args []string) (*Config, error) {
 	fs.StringVar(&cfg.RefreshToken, "bluecat-refreshtoken", os.Getenv("BLUECAT_REFRESHTOKEN"), "Token vendor refresh token")
 	fs.StringVar(&cfg.TokenExchangeURL, "bluecat-tokenexchangeurl", os.Getenv("BLUECAT_TOKENEXCHANGEURL"), "URL to the tokenvendor exchange endpoint")
 	fs.StringVar(&cfg.DNSConfiguration, "bluecat-dns-configuration", os.Getenv("BLUECAT_DNS_CONFIGURATION"), "optional BAM configuration name (informational)")
-	fs.StringVar(&cfg.View, "bluecat-dns-view", os.Getenv("BLUECAT_DNS_VIEW"), "optional DNS view name used to filter zones")
 	fs.StringVar(&cfg.RootZone, "bluecat-root-zone", os.Getenv("BLUECAT_ROOT_ZONE"), "root zone used to discover zones (contains filter)")
 	fs.StringVar(&cfg.DNSServerName, "bluecat-dns-server-name", os.Getenv("BLUECAT_DNS_SERVER_NAME"), "when set, enables zone deploy after changes")
 	fs.StringVar(&cfg.DNSDeployType, "bluecat-dns-deploy-type", envOr("BLUECAT_DNS_DEPLOY_TYPE", cfg.DNSDeployType), "no-deploy, quick-deploy, or dynamic")
@@ -143,9 +144,6 @@ func overlayFile(cfg *Config) error {
 	}
 	if file.DNSDeployType != "" {
 		cfg.DNSDeployType = file.DNSDeployType
-	}
-	if file.View != "" {
-		cfg.View = file.View
 	}
 	if file.RootZone != "" {
 		cfg.RootZone = file.RootZone

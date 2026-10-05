@@ -25,12 +25,11 @@ const (
 // Bluecat implements provider.Provider against Address Manager API v2.
 type Bluecat struct {
 	provider.BaseProvider
-	client       bluecat.Client
-	domainFilter *endpoint.DomainFilter
-	zoneIDFilter provider.ZoneIDFilter
-	dryRun       bool
-	rootZone     string
-	//view          string
+	client        bluecat.Client
+	domainFilter  *endpoint.DomainFilter
+	zoneIDFilter  provider.ZoneIDFilter
+	dryRun        bool
+	rootZone      string
 	dnsServerName string
 	dnsDeployType string
 }
@@ -54,12 +53,11 @@ func New(ctx context.Context, cfg *config.Config) (*Bluecat, error) {
 // NewWithClient is used by tests.
 func NewWithClient(cfg *config.Config, client bluecat.Client) *Bluecat {
 	return &Bluecat{
-		client:       client,
-		domainFilter: endpoint.NewDomainFilterWithExclusions(cfg.DomainFilter, cfg.ExcludeDomains),
-		zoneIDFilter: provider.NewZoneIDFilter(cfg.ZoneIDFilter),
-		dryRun:       cfg.DryRun,
-		rootZone:     cfg.RootZone,
-		//view:          cfg.View,
+		client:        client,
+		domainFilter:  endpoint.NewDomainFilterWithExclusions(cfg.DomainFilter, cfg.ExcludeDomains),
+		zoneIDFilter:  provider.NewZoneIDFilter(cfg.ZoneIDFilter),
+		dryRun:        cfg.DryRun,
+		rootZone:      cfg.RootZone,
 		dnsServerName: cfg.DNSServerName,
 		dnsDeployType: cfg.DNSDeployType,
 	}

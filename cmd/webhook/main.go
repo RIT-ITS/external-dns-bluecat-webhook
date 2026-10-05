@@ -10,7 +10,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	webhookapi "sigs.k8s.io/external-dns/provider/webhook/api"
 
 	"github.com/jacobmw/external-dns-bluecat-webhook/internal/config"
 	bluecatprovider "github.com/jacobmw/external-dns-bluecat-webhook/internal/provider"
@@ -70,6 +69,11 @@ func run(args []string) error {
 	}()
 
 	log.Infof("webhook API listening on %s", cfg.ListenAddress)
-	webhookapi.StartHTTPApi(p, nil, cfg.ReadTimeout, cfg.WriteTimeout, cfg.ListenAddress)
-	return nil
+	server := &http.Server{
+		Addr:         cfg.ListenAddress,
+		Handler:      webhookHandler(p, cfg.LogRequests, cfg.LogResponses),
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+	}
+	return server.ListenAndServe()
 }

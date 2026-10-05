@@ -33,7 +33,6 @@ Flags and environment variables are equivalent. Credentials from the environment
 | `--bluecat-refreshtoken` | `BLUECAT_REFRESHTOKEN` | Token vendor refresh token |
 | `--bluecat-tokenexchangeurl` | `BLUECAT_TOKENEXCHANGEURL` | URL of the token vendor exchange endpoint |
 | `--bluecat-root-zone` | `BLUECAT_ROOT_ZONE` | Zone discovery filter (`absoluteName:contains(...)`) |
-| `--bluecat-dns-view` | `BLUECAT_DNS_VIEW` | Optional view name filter |
 | `--bluecat-dns-deploy-type` | `BLUECAT_DNS_DEPLOY_TYPE` | `no-deploy` (default), `quick-deploy`, or `dynamic` |
 | `--bluecat-dns-server-name` | `BLUECAT_DNS_SERVER_NAME` | When set with `quick-deploy`, POST a zone deployment after changes |
 | `--bluecat-skip-tls-verify` | `BLUECAT_SKIP_TLS_VERIFY` | Skip TLS verify (labs only; incompatible with `--bluecat-ca-file`) |
@@ -42,6 +41,8 @@ Flags and environment variables are equivalent. Credentials from the environment
 | `--domain-filter` | | Limit managed domains |
 | `--listen-address` | | Webhook API, default `127.0.0.1:8888` |
 | `--health-address` | | `/healthz` and `/readyz`, default `:8080` |
+| `--log-requests` | | Log webhook request method, URL, headers, and body at info level (default `false`) |
+| `--log-responses` | | Log webhook response status, headers, and body at info level before sending (default `false`) |
 | `--dry-run` | | Log changes only |
 
 JSON file example:
@@ -51,7 +52,6 @@ JSON file example:
   "bluecatHost": "https://bam.example.com",
   "refreshToken": "your-refresh-token",
   "tokenExchangeURL": "https://tokenvendor.example.com/exchange",
-  "dnsView": "Internal",
   "rootZone": "example.com",
   "dnsDeployType": "no-deploy",
   "caFile": "/etc/bluecat/ca.crt",
