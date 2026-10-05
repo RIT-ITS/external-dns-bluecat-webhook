@@ -21,7 +21,20 @@ type Zone struct {
 	AbsoluteName         *string `json:"absoluteName,omitempty"`
 	DynamicUpdateEnabled *bool   `json:"dynamicUpdateEnabled,omitempty"`
 	DeploymentEnabled    *bool   `json:"deploymentEnabled,omitempty"`
-	View                 *string `json:"view,omitempty"`
+	// View                 *View   `json:"view,omitempty"`
+}
+
+// View is a DNS view in Address Manager.
+type View struct {
+	ID    *int64          `json:"id,omitempty"`
+	Type  *string         `json:"type,omitempty"`
+	Name  *string         `json:"name,omitempty"`
+	Links map[string]Link `json:"_links,omitempty"`
+}
+
+// Link is a reference to an Address Manager resource.
+type Link struct {
+	Href *string `json:"href,omitempty"`
 }
 
 func (z Zone) AbsoluteNameOrEmpty() string {
